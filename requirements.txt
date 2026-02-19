@@ -6,6 +6,4 @@ whitenoise==6.6.0
 python-dotenv==1.0.0
 psycopg2-binary==2.9.9
 requests==2.31.0
-qa-check==0.1.0 # This isn't needed but was in the previous file. Removed for safety.
-qrcode==7.4.2
-Pillow==10.2.0
+
