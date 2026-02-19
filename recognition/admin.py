@@ -1,29 +1,23 @@
 from django.contrib import admin
-from .models import Participant, MeetingSession, Nomination, Vote
-
-
-@admin.register(Participant)
-class ParticipantAdmin(admin.ModelAdmin):
-    list_display = ["email", "token", "created_at"]
-    search_fields = ["email"]
-    ordering = ["email"]
+from .models import MeetingSession, Nomination, Vote
 
 
 @admin.register(MeetingSession)
 class MeetingSessionAdmin(admin.ModelAdmin):
-    list_display = ["title", "meeting_date", "phase", "created_at"]
+    list_display = ["title", "meeting_date", "phase", "winner_name", "created_at"]
     list_filter = ["phase"]
-    search_fields = ["title"]
+    search_fields = ["title", "winner_name"]
 
 
 @admin.register(Nomination)
 class NominationAdmin(admin.ModelAdmin):
-    list_display = ["session", "nominator", "nominee_name", "created_at"]
+    list_display = ["session", "nominator_name", "nominee_name", "created_at"]
     list_filter = ["session"]
-    search_fields = ["nominator__email", "nominee_name"]
+    search_fields = ["nominator_name", "nominee_name", "reason"]
 
 
 @admin.register(Vote)
 class VoteAdmin(admin.ModelAdmin):
-    list_display = ["session", "voter", "nomination", "created_at"]
+    list_display = ["session", "voter_name", "created_at"]
     list_filter = ["session"]
+    search_fields = ["voter_name"]
