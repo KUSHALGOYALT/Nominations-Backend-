@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path("auth/check", views.admin_check),
+    path("scan", views.qr_scan),
     path("session", views.session_get),
     path("session/create", views.session_create),
     path("session/patch", views.session_patch),

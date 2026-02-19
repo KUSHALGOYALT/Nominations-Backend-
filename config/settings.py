@@ -82,7 +82,6 @@ if not DEBUG:
     ]
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "hexa-admin-2025")
-APP_URL = os.environ.get("APP_URL", "http://localhost:3000")
 
 # Email Configuration (Production - Gmail)
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -92,3 +91,4 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = "kushalgoyal48@gmail.com"
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "put-your-app-password-here")
 DEFAULT_FROM_EMAIL = "Hexa Recognition <kushalgoyal48@gmail.com>"
+APP_URL = os.environ.get("APP_URL", "https://nominations-frontend.vercel.app")

@@ -43,6 +43,17 @@ def session_get(request):
     return JsonResponse({"session": session_to_dict(session) if session else None})
 
 
+@require_http_methods(["GET"])
+def qr_scan(request):
+    """Redirects QR scan to the frontend voting page"""
+    # Use APP_URL from settings, or fall back to a default if not set
+    frontend_url = getattr(settings, "APP_URL", "https://nominations-frontend.vercel.app")
+    # Ensure no trailing slash for clean appending
+    frontend_url = frontend_url.rstrip("/")
+    from django.shortcuts import redirect
+    return redirect(f"{frontend_url}/vote")
+
+
 @csrf_exempt
 @admin_required
 @require_http_methods(["POST"])
