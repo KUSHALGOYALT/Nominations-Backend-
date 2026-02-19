@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.shortcuts import redirect
 
 from .models import MeetingSession, Nomination, Vote
 
@@ -45,12 +46,13 @@ def session_get(request):
 
 @require_http_methods(["GET"])
 def qr_join(request):
-    """Redirects QR scan to the frontend voting page"""
-    # Hardcode for stability, or ensure env var is correct.
-    # Using the known vercel app URL directly to prevent env var mishaps.
-    frontend_url = "https://nominations-frontend.vercel.app"
+    """Redirects QR scan to the frontend voting page; preserves query (e.g. ?token=) so the vote page can identify the user."""
+    frontend_url = getattr(settings, "FRONTEND_URL", "https://nominations-frontend.vercel.app")
     from django.shortcuts import redirect
-    return redirect(f"{frontend_url}/vote")
+    path = "/vote"
+    if request.GET:
+        path += "?" + request.GET.urlencode()
+    return redirect(frontend_url.rstrip("/") + path)
 
 
 @csrf_exempt
