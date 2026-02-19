@@ -1,6 +1,10 @@
 from django.urls import path, include
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib import admin
+
+def root_view(request):
+    """Root path for health checks (GET / or HEAD /) - avoids 404."""
+    return JsonResponse({"ok": True, "service": "recognition-api", "api": "/api/"})
 
 def admin_redirect_info(request):
     return HttpResponse(
@@ -12,6 +16,8 @@ def admin_redirect_info(request):
     )
 
 urlpatterns = [
+    path("", root_view),
     path("api/", include("recognition.urls")),
-    path("admin/", admin.site.urls),
+    path("admin/", admin_redirect_info),
+    path("django-admin/", admin.site.urls),
 ]
