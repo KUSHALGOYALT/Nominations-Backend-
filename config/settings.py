@@ -81,7 +81,7 @@ if not DEBUG:
         "https://*.render.com",
     ]
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Arpit2026")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "hexa-admin-2025")
 APP_URL = os.environ.get("APP_URL", "http://localhost:3000")
 
 # Email Configuration (Production - Gmail)
