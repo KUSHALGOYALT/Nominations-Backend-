@@ -29,9 +29,9 @@ class Nomination(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # One nomination per person per session (implicitly tracked by name now)
-        # Note: Name matching is loose, but sufficient for this use case.
-        pass
+        constraints = [
+            models.UniqueConstraint(fields=["session", "nominator_name"], name="one_nomination_per_person_per_session"),
+        ]
 
     def __str__(self):
         return f"{self.nominator_name} nominated {self.nominee_name}"

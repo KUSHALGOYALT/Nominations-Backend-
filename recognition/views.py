@@ -1,4 +1,5 @@
 import json
+from django.db.models import Count
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -211,10 +212,10 @@ def vote_create(request):
 
 @require_http_methods(["GET"])
 def results_get(request):
-    """Vote counts per nominee and list of winners (all with max votes; ties allowed)."""
+    """Vote counts per nominee, winners (all with max votes; ties allowed), and none_of_above count."""
     session = _resolve_session(request)
     if not session:
-        return JsonResponse({"vote_counts": [], "winners": []})
+        return JsonResponse({"vote_counts": [], "winners": [], "none_of_above_count": 0})
 
     # Count votes per nomination, then aggregate by nominee_name (same person can have one nomination)
     nominations = session.nominations.all()
@@ -229,7 +230,16 @@ def results_get(request):
     max_count = vote_counts[0]["count"] if vote_counts else 0
     winners = [x["name"] for x in vote_counts if x["count"] == max_count and max_count > 0]
 
-    return JsonResponse({"vote_counts": vote_counts, "winners": winners})
+    # Votes that selected "None of the above" (no nominations selected)
+    none_of_above_count = Vote.objects.filter(session=session).annotate(
+        n_count=Count("nominations")
+    ).filter(n_count=0).count()
+
+    return JsonResponse({
+        "vote_counts": vote_counts,
+        "winners": winners,
+        "none_of_above_count": none_of_above_count,
+    })
 
 
 @csrf_exempt
