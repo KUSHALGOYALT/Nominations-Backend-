@@ -24,8 +24,8 @@ def session_to_dict(s):
     return {
         "id": str(s.id),
         "title": s.title,
-        "meeting_date": str(s.meeting_date),
-        "phase": s.phase,
+        "meeting_date": str(s.meeting_date) if s.meeting_date else None,
+        "phase": (s.phase or "setup").lower(),
         "created_at": s.created_at.isoformat(),
     }
 
@@ -40,7 +40,8 @@ def admin_check(request):
 # ----- Session -----
 @require_http_methods(["GET"])
 def session_get(request):
-    session = MeetingSession.objects.order_by("-created_at").first()
+    # Return the session that was most recently updated (so advancing phase makes it "active")
+    session = MeetingSession.objects.order_by("-updated_at").first()
     return JsonResponse({"session": session_to_dict(session) if session else None})
 
 
@@ -106,7 +107,7 @@ def session_patch(request):
 @require_http_methods(["GET"])
 def nominations_list(request):
     """List all nominations for the active session (for voting)"""
-    session = MeetingSession.objects.order_by("-created_at").first()
+    session = MeetingSession.objects.order_by("-updated_at").first()
     if not session:
         return JsonResponse({"nominations": []})
         
@@ -133,7 +134,7 @@ def nomination_create(request):
     if not all([nominator_name, nominee_name, reason]):
         return JsonResponse({"error": "Missing fields"}, status=400)
         
-    session = MeetingSession.objects.order_by("-created_at").first()
+    session = MeetingSession.objects.order_by("-updated_at").first()
     
     if not session or session.phase != "nomination":
         return JsonResponse({"error": "Session not in nomination phase"}, status=400)
@@ -160,7 +161,7 @@ def vote_create(request):
     if not voter_name:
         return JsonResponse({"error": "Voter name required"}, status=400)
         
-    session = MeetingSession.objects.order_by("-created_at").first()
+    session = MeetingSession.objects.order_by("-updated_at").first()
     
     if not session or session.phase != "voting":
         return JsonResponse({"error": "Session not in voting phase"}, status=400)
