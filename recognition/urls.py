@@ -11,4 +11,5 @@ urlpatterns = [
     path("nominations/create", views.nomination_create),
     path("nominations/<int:nomination_id>/delete", views.nomination_delete),
     path("votes/create", views.vote_create),
+    path("results", views.results_get),
 ]

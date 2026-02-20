@@ -209,6 +209,29 @@ def vote_create(request):
     return JsonResponse({"ok": True}, status=201)
 
 
+@require_http_methods(["GET"])
+def results_get(request):
+    """Vote counts per nominee and list of winners (all with max votes; ties allowed)."""
+    session = _resolve_session(request)
+    if not session:
+        return JsonResponse({"vote_counts": [], "winners": []})
+
+    # Count votes per nomination, then aggregate by nominee_name (same person can have one nomination)
+    nominations = session.nominations.all()
+    name_to_count = {}
+    for n in nominations:
+        count = Vote.objects.filter(session=session, nominations=n).count()
+        name_to_count[n.nominee_name] = name_to_count.get(n.nominee_name, 0) + count
+
+    vote_counts = [{"name": name, "count": c} for name, c in name_to_count.items()]
+    vote_counts.sort(key=lambda x: -x["count"])
+
+    max_count = vote_counts[0]["count"] if vote_counts else 0
+    winners = [x["name"] for x in vote_counts if x["count"] == max_count and max_count > 0]
+
+    return JsonResponse({"vote_counts": vote_counts, "winners": winners})
+
+
 @csrf_exempt
 @admin_required
 @require_http_methods(["DELETE"])
