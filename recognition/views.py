@@ -40,20 +40,33 @@ def admin_check(request):
 # ----- Session -----
 @require_http_methods(["GET"])
 def session_get(request):
-    # Return the session that was most recently updated (so advancing phase makes it "active")
+    session_id = request.GET.get("session_id")
+    if session_id:
+        try:
+            session = MeetingSession.objects.get(id=session_id)
+            return JsonResponse({"session": session_to_dict(session)})
+        except (MeetingSession.DoesNotExist, ValueError):
+            return JsonResponse({"session": None, "error": "Session not found"})
+    # No session_id: return the session that was most recently updated (active session)
     session = MeetingSession.objects.order_by("-updated_at").first()
     return JsonResponse({"session": session_to_dict(session) if session else None})
 
 
 @require_http_methods(["GET"])
 def qr_join(request):
-    """Redirects QR scan to the frontend voting page; preserves query (e.g. ?token=) so the vote page can identify the user."""
-    frontend_url = getattr(settings, "FRONTEND_URL", "https://nominations-frontend.vercel.app")
-    from django.shortcuts import redirect
-    path = "/vote"
-    if request.GET:
-        path += "?" + request.GET.urlencode()
-    return redirect(frontend_url.rstrip("/") + path)
+    """Redirects to frontend /vote with session_id. Requires session_id in query; invalid session -> /vote?error=invalid_session."""
+    frontend_url = getattr(settings, "APP_URL", "http://localhost:3000").rstrip("/")
+    session_id = request.GET.get("session_id")
+    if not session_id:
+        return redirect(f"{frontend_url}/vote?error=missing_session")
+    try:
+        session = MeetingSession.objects.get(id=session_id)
+    except (MeetingSession.DoesNotExist, ValueError):
+        return redirect(f"{frontend_url}/vote?error=invalid_session")
+    # Optional: treat closed as not joinable
+    if (session.phase or "").lower() == "closed":
+        return redirect(f"{frontend_url}/vote?session_id={session_id}&error=session_ended")
+    return redirect(f"{frontend_url}/vote?session_id={session_id}")
 
 
 @csrf_exempt
@@ -102,12 +115,23 @@ def session_patch(request):
     return JsonResponse({"session": session_to_dict(session)})
 
 
+def _resolve_session(request, session_id_from_body=None):
+    """Resolve session from request: session_id in GET, POST body, or most recently updated."""
+    session_id = request.GET.get("session_id") or session_id_from_body
+    if session_id:
+        try:
+            return MeetingSession.objects.get(id=session_id)
+        except (MeetingSession.DoesNotExist, ValueError):
+            return None
+    return MeetingSession.objects.order_by("-updated_at").first()
+
+
 # ----- Nominations & Votes -----
 
 @require_http_methods(["GET"])
 def nominations_list(request):
-    """List all nominations for the active session (for voting)"""
-    session = MeetingSession.objects.order_by("-updated_at").first()
+    """List all nominations for the given or active session (for voting)."""
+    session = _resolve_session(request)
     if not session:
         return JsonResponse({"nominations": []})
         
@@ -134,9 +158,11 @@ def nomination_create(request):
     if not all([nominator_name, nominee_name, reason]):
         return JsonResponse({"error": "Missing fields"}, status=400)
         
-    session = MeetingSession.objects.order_by("-updated_at").first()
+    session = _resolve_session(request, data.get("session_id"))
     
-    if not session or session.phase != "nomination":
+    if not session:
+        return JsonResponse({"error": "Session not found"}, status=404)
+    if session.phase != "nomination":
         return JsonResponse({"error": "Session not in nomination phase"}, status=400)
         
     if Nomination.objects.filter(session=session, nominator_name=nominator_name).exists():
@@ -161,9 +187,11 @@ def vote_create(request):
     if not voter_name:
         return JsonResponse({"error": "Voter name required"}, status=400)
         
-    session = MeetingSession.objects.order_by("-updated_at").first()
+    session = _resolve_session(request, data.get("session_id"))
     
-    if not session or session.phase != "voting":
+    if not session:
+        return JsonResponse({"error": "Session not found"}, status=404)
+    if session.phase != "voting":
         return JsonResponse({"error": "Session not in voting phase"}, status=400)
         
     if Vote.objects.filter(session=session, voter_name=voter_name).exists():
