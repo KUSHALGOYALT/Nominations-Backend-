@@ -67,7 +67,8 @@ def session_get(request):
         except (MeetingSession.DoesNotExist, ValueError):
             return JsonResponse({"session": None, "error": "Session not found"})
     else:
-        session = MeetingSession.objects.order_by("-updated_at").first()
+        # Return the most recently updated session that is not closed, so admin sees an "active" session and gets a fresh link when they create a new one (closed sessions are not re-used).
+        session = MeetingSession.objects.exclude(phase="closed").order_by("-updated_at").first()
 
     payload = {"session": session_to_dict(session) if session else None}
     if session:
