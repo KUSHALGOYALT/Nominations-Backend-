@@ -141,6 +141,12 @@ def session_patch(request):
         )
     session.phase = phase
     session.save()
+
+    # When closing the session, delete all votes and nominations so we don't retain them after the session (avoids storage/privacy issues).
+    if (phase or "").lower() == "closed":
+        Vote.objects.filter(session=session).delete()
+        Nomination.objects.filter(session=session).delete()
+
     return JsonResponse({"session": session_to_dict(session)})
 
 
