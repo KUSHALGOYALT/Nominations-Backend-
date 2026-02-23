@@ -38,19 +38,47 @@ def admin_check(request):
     return JsonResponse({"ok": True})
 
 
+def _get_results_for_session(session):
+    """Vote counts, winners, none_of_above_count. Only meaningful when phase is results/closed."""
+    nominations = session.nominations.all()
+    name_to_count = {}
+    for n in nominations:
+        count = Vote.objects.filter(session=session, nominations=n).count()
+        name_to_count[n.nominee_name] = name_to_count.get(n.nominee_name, 0) + count
+    vote_counts = [{"name": name, "count": c} for name, c in name_to_count.items()]
+    vote_counts.sort(key=lambda x: -x["count"])
+    max_count = vote_counts[0]["count"] if vote_counts else 0
+    winners = [x["name"] for x in vote_counts if x["count"] == max_count and max_count > 0]
+    none_of_above_count = Vote.objects.filter(session=session).annotate(
+        n_count=Count("nominations")
+    ).filter(n_count=0).count()
+    return {"vote_counts": vote_counts, "winners": winners, "none_of_above_count": none_of_above_count}
+
+
 # ----- Session -----
+# This is the only API that returns results (vote_counts, winners, none_of_above_count), and only when phase is results/closed.
 @require_http_methods(["GET"])
 def session_get(request):
+    """GET session (optional session_id). Returns session dict and, when phase is results/closed, vote_counts, winners, none_of_above_count."""
     session_id = request.GET.get("session_id")
     if session_id:
         try:
             session = MeetingSession.objects.get(id=session_id)
-            return JsonResponse({"session": session_to_dict(session)})
         except (MeetingSession.DoesNotExist, ValueError):
             return JsonResponse({"session": None, "error": "Session not found"})
-    # No session_id: return the session that was most recently updated (active session)
-    session = MeetingSession.objects.order_by("-updated_at").first()
-    return JsonResponse({"session": session_to_dict(session) if session else None})
+    else:
+        session = MeetingSession.objects.order_by("-updated_at").first()
+
+    payload = {"session": session_to_dict(session) if session else None}
+    if session:
+        phase = (session.phase or "").lower()
+        if phase in ("results", "closed"):
+            payload.update(_get_results_for_session(session))
+        else:
+            payload["vote_counts"] = []
+            payload["winners"] = []
+            payload["none_of_above_count"] = 0
+    return JsonResponse(payload)
 
 
 @require_http_methods(["GET"])
@@ -208,38 +236,6 @@ def vote_create(request):
         vote.nominations.set(nominations)
     
     return JsonResponse({"ok": True}, status=201)
-
-
-@require_http_methods(["GET"])
-def results_get(request):
-    """Vote counts per nominee, winners (all with max votes; ties allowed), and none_of_above count."""
-    session = _resolve_session(request)
-    if not session:
-        return JsonResponse({"vote_counts": [], "winners": [], "none_of_above_count": 0})
-
-    # Count votes per nomination, then aggregate by nominee_name (same person can have one nomination)
-    nominations = session.nominations.all()
-    name_to_count = {}
-    for n in nominations:
-        count = Vote.objects.filter(session=session, nominations=n).count()
-        name_to_count[n.nominee_name] = name_to_count.get(n.nominee_name, 0) + count
-
-    vote_counts = [{"name": name, "count": c} for name, c in name_to_count.items()]
-    vote_counts.sort(key=lambda x: -x["count"])
-
-    max_count = vote_counts[0]["count"] if vote_counts else 0
-    winners = [x["name"] for x in vote_counts if x["count"] == max_count and max_count > 0]
-
-    # Votes that selected "None of the above" (no nominations selected)
-    none_of_above_count = Vote.objects.filter(session=session).annotate(
-        n_count=Count("nominations")
-    ).filter(n_count=0).count()
-
-    return JsonResponse({
-        "vote_counts": vote_counts,
-        "winners": winners,
-        "none_of_above_count": none_of_above_count,
-    })
 
 
 @csrf_exempt
