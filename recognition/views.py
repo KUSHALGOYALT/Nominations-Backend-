@@ -163,6 +163,8 @@ def nomination_create(request):
         return JsonResponse({"error": "Session not found"}, status=404)
     if session.phase != "nomination":
         return JsonResponse({"error": "Session not in nomination phase"}, status=400)
+    if Nomination.objects.filter(session=session, nominator_name=nominator_name, nominee_name__iexact=nominee_name.strip()).exists():
+        return JsonResponse({"error": "You can nominate each person at most once."}, status=400)
     count = Nomination.objects.filter(session=session, nominator_name=nominator_name).count()
     if count >= 3:
         return JsonResponse({"error": "You can nominate at most 3 people per session."}, status=400)
