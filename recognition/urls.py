@@ -1,7 +1,6 @@
 from django.urls import path
 from . import views
 
-# Results (vote_counts, winners, none_of_above_count) are returned only by GET session when phase is results/closed. No separate /results endpoint.
 urlpatterns = [
     path("auth/check", views.admin_check),
     path("qr-join", views.qr_join),

@@ -1,6 +1,15 @@
 """
 API tests for recognition app.
 Run: python manage.py test recognition
+
+Identity and single-use (no double vote / double nomination):
+- We do not use email. Participants identify by a name they enter when joining.
+- Per session: one nomination per nominator_name (UniqueConstraint + view check).
+- Per session: one vote per voter_name (view check before creating vote).
+- So the same person scanning the same session from a different QR/device and entering
+  the same name cannot vote or nominate twice; the backend returns 400.
+- The same name in a different session is allowed (identity is per session).
+- Admin: single shared password (no email); any device with the password can admin.
 """
 import json
 from django.test import TestCase, Client, override_settings
@@ -170,23 +179,27 @@ class NominationAPITests(TestCase):
         )
         self.assertEqual(r.status_code, 400)
 
-    def test_nomination_duplicate_rejected(self):
-        Nomination.objects.create(
-            session=self.session,
-            nominator_name="Alice",
-            nominee_name="Alice",
-            reason="First pitch.",
-        )
+    def test_nomination_max_3_per_person(self):
+        """Same person can nominate up to 3; 4th is rejected."""
+        for i in range(3):
+            Nomination.objects.create(
+                session=self.session,
+                nominator_name="Alice",
+                nominee_name=f"Nominee{i}",
+                reason=f"Pitch {i}.",
+            )
         r = self.client.post(
             "/api/nominations/create",
             data=json.dumps({
                 "nominator_name": "Alice",
-                "nominee_name": "Alice",
-                "reason": "Second pitch.",
+                "nominee_name": "Fourth",
+                "reason": "Fourth pitch.",
+                "session_id": self.session.id,
             }),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 400)
+        self.assertIn("at most 3", (r.json().get("error") or "").lower())
 
     def test_nominations_list_returns_for_active_session(self):
         Nomination.objects.create(
@@ -252,13 +265,37 @@ class VoteAPITests(TestCase):
         self.assertEqual(r.status_code, 400)
 
     def test_vote_duplicate_rejected(self):
+        """Same person (voter_name) cannot vote twice in the same session (e.g. scanning same session from another device/QR)."""
         Vote.objects.create(session=self.session, voter_name="Bob")
         r = self.client.post(
             "/api/votes/create",
-            data=json.dumps({"voter_name": "Bob", "nomination_ids": [self.nom.id]}),
+            data=json.dumps({"voter_name": "Bob", "nomination_ids": [self.nom.id], "session_id": self.session.id}),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 400)
+        self.assertIn("already voted", (r.json().get("error") or "").lower())
+
+    def test_same_name_can_vote_in_different_sessions(self):
+        """Same name in a different session is allowed (identity is per session, not global)."""
+        Vote.objects.create(session=self.session, voter_name="Bob")
+        other_session = MeetingSession.objects.create(
+            title="Other",
+            meeting_date=timezone.now().date(),
+            phase="voting",
+        )
+        other_nom = Nomination.objects.create(
+            session=other_session,
+            nominator_name="Alice",
+            nominee_name="Alice",
+            reason="Pitch.",
+        )
+        r = self.client.post(
+            "/api/votes/create",
+            data=json.dumps({"voter_name": "Bob", "nomination_ids": [other_nom.id], "session_id": other_session.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(Vote.objects.filter(session=other_session, voter_name="Bob").count(), 1)
 
 
 @override_settings(ADMIN_PASSWORD="test-admin-secret")

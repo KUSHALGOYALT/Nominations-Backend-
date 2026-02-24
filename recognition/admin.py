@@ -4,20 +4,20 @@ from .models import MeetingSession, Nomination, Vote
 
 @admin.register(MeetingSession)
 class MeetingSessionAdmin(admin.ModelAdmin):
-    list_display = ["title", "meeting_date", "phase", "winner_name", "created_at"]
+    list_display = ["title", "phase", "updated_at"]
     list_filter = ["phase"]
-    search_fields = ["title", "winner_name"]
+    list_per_page = 20
 
 
 @admin.register(Nomination)
 class NominationAdmin(admin.ModelAdmin):
-    list_display = ["session", "nominator_name", "nominee_name", "created_at"]
+    list_display = ["nominee_name", "nominator_name", "session", "created_at"]
     list_filter = ["session"]
-    search_fields = ["nominator_name", "nominee_name", "reason"]
+    list_per_page = 20
 
 
 @admin.register(Vote)
 class VoteAdmin(admin.ModelAdmin):
-    list_display = ["session", "voter_name", "created_at"]
+    list_display = ["voter_name", "session", "created_at"]
     list_filter = ["session"]
-    search_fields = ["voter_name"]
+    list_per_page = 20
