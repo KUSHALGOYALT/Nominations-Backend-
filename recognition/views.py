@@ -31,13 +31,26 @@ def session_to_dict(s):
 
 
 def _get_results_for_session(session):
-    """Vote counts, winners, none_of_above for results/closed phase."""
-    nominations = session.nominations.all()
-    name_to_count = {}
-    for n in nominations:
-        c = Vote.objects.filter(session=session, nominations=n).count()
-        name_to_count[n.nominee_name] = name_to_count.get(n.nominee_name, 0) + c
-    vote_counts = sorted([{"name": k, "count": v} for k, v in name_to_count.items()], key=lambda x: -x["count"])
+    """Vote counts by unique nominee (case-insensitive), one count per vote per nominee."""
+    name_to_count = {}  # key: lowercase; value: {"display": str, "count": int}
+    for v in Vote.objects.filter(session=session).prefetch_related("nominations"):
+        seen = set()
+        display_for = {}
+        for n in v.nominations.all():
+            key = (n.nominee_name or "").strip().lower()
+            if not key:
+                continue
+            seen.add(key)
+            if key not in display_for:
+                display_for[key] = (n.nominee_name or "").strip()
+        for key in seen:
+            if key not in name_to_count:
+                name_to_count[key] = {"display": display_for[key], "count": 0}
+            name_to_count[key]["count"] += 1
+    vote_counts = sorted(
+        [{"name": v["display"], "count": v["count"]} for v in name_to_count.values()],
+        key=lambda x: -x["count"],
+    )
     max_count = vote_counts[0]["count"] if vote_counts else 0
     winners = [x["name"] for x in vote_counts if x["count"] == max_count and max_count > 0]
     none_of_above_count = Vote.objects.filter(session=session).annotate(nc=Count("nominations")).filter(nc=0).count()
